@@ -1,0 +1,8 @@
+node_modules
+target
+dist
+out
+src/engine/petvoice.wasm
+*.log
+.DS_Store
+src/engine/petvoice_speech.wasm

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#170f20" />
+    <meta name="color-scheme" content="dark" />
+    <title>PetVoice Lab · 捏一只会叫的宠物</title>
+    <meta name="description" content="用物理建模的声道捏一只猫或狗的嗓子，再用它的嗓子说你的话。全部在本地合成，没有录音采样。" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23170f20'/%3E%3Cpath d='M7 22V9l5 5h8l5-5v13a9 9 0 0 1-18 0z' fill='none' stroke='%23ff8a73' stroke-width='2'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <canvas id="stage" tabindex="0" aria-label="你的宠物。点一下或按回车它会叫；拖动或按方向键转头，双击回正；拖它的鼻子改口鼻长短，滚轮或双指缩放改个头"></canvas>
+
+    <div id="app">
+      <header class="bar">
+        <h1>PetVoice <span>Lab</span></h1>
+        <label class="namepill" title="名字不影响声音，只用在声纹卡片、导出视频、文件名和分享链接里">
+          <input id="name" maxlength="12" aria-label="宠物的名字（不影响声音，用在卡片、视频和文件名里）" placeholder="起个名字" /><span aria-hidden="true">✎</span>
+        </label>
+        <div class="bar-actions">
+          <button id="xray" aria-pressed="false" title="看它身体里面：声道、声带和气流，以及厘米和赫兹">透视</button>
+          <button class="primary" id="export-open">导出</button>
+        </div>
+      </header>
+
+      <button id="start-hint" class="start-hint">点一下它，听它叫</button>
+      <div class="stage-foot" id="stage-foot"></div>
+
+      <aside class="sheet sculpt-sheet" aria-label="捏声音">
+        <h2 class="sculpt-title">捏声音</h2>
+        <button id="sculpt-toggle" aria-controls="sculpt" aria-expanded="false">捏声音 <span>调整参数</span></button>
+        <section class="pane" id="sculpt" aria-label="嗓音参数">
+          <details id="preset-picker"><summary id="preset-label">选择宠物</summary>
+          <div class="seg" id="species" role="radiogroup" aria-label="物种">
+            <button data-v="cat" role="radio">猫</button>
+            <button data-v="dog" role="radio">狗</button>
+          </div>
+          <div class="cards" id="presets" aria-label="从一只开始"></div>
+          </details>
+          <div class="sliders">
+            <label title="声道的总长度和所有管道的粗细；越大声音越低沉"><span>个头<i id="v-size"></i></span><input type="range" id="size" min="0" max="1" step="0.01" /><small><b>小不点</b><b>大块头</b></small></label>
+            <label title="幼崽的声带和声道都短，声音又高又细；年迈时声带变厚，略低略哑"><span>年纪<i id="v-age"></i></span><input type="range" id="age" min="0" max="1" step="0.01" /><small><b>奶娃</b><b>老宝贝</b></small></label>
+            <label title="长口鼻让口腔和整条声道变长、鼻腔变粗；扁脸相反，鼻腔窄"><span>口鼻<i id="v-snout"></i></span><input type="range" id="snout" min="0" max="1" step="0.01" /><small><b>扁扁脸</b><b>长鼻子</b></small></label>
+            <label title="声带闭合的松紧、漏气多少、振动是否规则"><span>嗓音<i id="v-texture"></i></span><input type="range" id="texture" min="-1" max="1" step="0.01" /><small><b>清亮</b><b>沙哑</b></small></label>
+          </div>
+          <label class="audition-switch">调整后试听<input type="checkbox" id="auto-replay" role="switch" checked /></label>
+          <button class="link" id="fit-open">或者，用它的真实叫声自动捏（实验）</button>
+        </section>
+
+      </aside>
+      <aside class="sheet sound-sheet" aria-label="试听">
+        <nav class="tabs" role="tablist" aria-label="试听模式">
+          <button role="tab" id="tab-call" data-tab="call" aria-selected="true" aria-controls="call"><b>叫</b></button>
+          <button role="tab" id="tab-talk" data-tab="talk" aria-selected="false" aria-controls="talk"><b>学说话</b></button>
+        </nav>
+        <section class="pane" id="call" role="tabpanel" aria-labelledby="tab-call">
+          <h2>它现在的心情</h2>
+          <div class="wheel">
+            <div id="mood" role="radiogroup" aria-label="心情"></div>
+            <button type="button" id="mood-preview"><strong id="mood-name"></strong><small>▶ 试听</small></button>
+          </div>
+          <h2>让它叫 <small>点它本身也会叫</small></h2>
+          <div class="bubbles" id="calls" role="group" aria-label="叫声"></div>
+        </section>
+
+        <section class="pane" id="talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
+          <div class="row">
+            <span class="field-label">录的是</span>
+            <div class="seg small" id="src" role="radiogroup" aria-label="录音里是谁的声音">
+              <button data-v="human" role="radio" aria-checked="true">人说话</button>
+              <button data-v="pet" role="radio" aria-checked="false">宠物自己叫</button>
+            </div>
+          </div>
+          <div class="recrow">
+            <button class="rec big" id="rec" aria-label="开始录音"><i></i><span>开始录音</span></button>
+            <label class="filebtn">上传音频<input type="file" id="file" accept="audio/*,video/*" hidden /></label>
+          </div>
+          <div class="sayrow" id="say-row">
+            <input id="say-text" maxlength="120" aria-label="打一句话让它学" placeholder="或者打字：你饿不饿？" />
+            <button id="say-go" title="把这句话交给它：生成叫声并播放">让它学</button>
+          </div>
+          <div class="hint" id="samples">没有麦克风？试试示例：<button class="link" data-s="statement">陈述句</button>、<button class="link" data-s="question">问句</button></div>
+          <div class="status" id="talk-status">录一句、上传音频或打字，让它学你的语气。</div>
+          <div id="original-clip" hidden>
+            <h2>原声</h2>
+            <div class="original-player"><button id="play-human" aria-label="播放原声" disabled>▶</button><canvas id="original-wave" width="420" height="52" aria-label="原声波形"></canvas><time id="original-duration"></time></div>
+          </div>
+          <h2 id="pet-output">宠物的声音</h2>
+          <div class="chart-wrap">
+            <canvas id="chart" aria-label="人声与宠物叫声的音高曲线对比"></canvas>
+          </div>
+          <div class="actions">
+            <button class="primary" id="play-pet" disabled title="把刚生成的这段叫声再播一遍">▶ 再听一遍</button>
+
+            <button id="pet-loop" disabled title="放大音量，每隔 4 秒重复一次">循环放给宠物听</button>
+          </div>
+          <div class="hint" id="pet-note" hidden>正在放大音量循环播放。目前没有证据表明合成叫声会让真实的猫狗有反应，这是一次实测：请用另一台设备录下它的反应。别贴着它的耳朵放，它紧张就停。</div>
+        </section>
+
+        <p class="credit">声音由 <a href="https://github.com/jamesondh/chimera-vocal-synth" target="_blank" rel="noopener">CHIMERA</a> 物理声道引擎在本地实时合成，没有录音采样，不联网。<span class="perf" id="perf"></span></p>
+      </aside>
+    </div>
+
+    <dialog id="fit-dialog" aria-labelledby="h-fit">
+      <div class="export-body">
+        <h2 id="h-fit">用它的真实叫声自动捏 <small>实验</small></h2>
+        <p class="hint">录一段或上传一段它的叫声。页面从里面量出音高和共鸣，自动调“体型”和“质地”。年龄和口鼻听不出来，保持你设的值。这个功能只用合成的叫声验证过，还没有用真实录音试过。</p>
+        <label class="inline">这段叫声是 <select id="fit-call" aria-label="录的是哪种叫声"></select></label>
+        <div class="actions">
+          <button class="primary rec" id="fit-rec"><i></i><span>录它的叫声</span></button>
+          <label class="filebtn">上传音频<input type="file" id="fit-file" accept="audio/*,video/*" hidden /></label>
+        </div>
+        <div class="status" id="fit-status"></div>
+        <div class="actions">
+          <button id="fit-undo" hidden>撤销这次调整</button>
+          <button id="fit-close">完成</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="card-dialog">
+      <div class="dialog-body">
+        <canvas id="card" width="1080" height="1440"></canvas>
+        <div class="actions">
+          <button class="primary" id="card-png">保存 PNG</button>
+          <button id="card-link">复制分享链接</button>
+          <button id="card-close">关闭</button>
+        </div>
+        <div class="status" id="card-status"></div>
+      </div>
+    </dialog>
+
+    <dialog id="export-dialog" aria-labelledby="h-export">
+      <div class="export-body">
+        <h2 id="h-export">导出</h2>
+        <h3>这只宠物的嗓子</h3>
+        <button class="export-item" id="export-call"><b>当前叫声</b><small id="export-call-note">WAV</small></button>
+        <button class="export-item" id="export-all"><b>全部叫声</b><small id="export-all-note">ZIP，里面每种叫声一个 WAV</small></button>
+        <button class="export-item" id="make-card"><b>声纹卡片和分享链接</b><small>PNG 图片；链接里带着全部参数</small></button>
+        <h3>对讲机里它说的那句</h3>
+        <button class="export-item" id="export-talk" disabled><b>叫声</b><small>WAV</small></button>
+        <button class="export-item" id="export-video" disabled><b>竖屏短视频</b><small>约 10 秒：原声、叫声和剖面动画，实时录制</small></button>
+        <div class="status" id="export-status"></div>
+        <div class="actions"><button id="export-close">关闭</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="video-dialog">
+      <div class="dialog-body">
+        <canvas id="video-canvas" width="720" height="1280"></canvas>
+        <video id="video-out" controls playsinline hidden></video>
+        <div class="status" id="video-status">正在录制…请保持页面在前台</div>
+        <div class="actions">
+          <button class="primary" id="video-save" hidden>保存视频</button>
+          <button id="video-share" hidden>分享</button>
+          <button id="video-close">关闭</button>
+        </div>
+      </div>
+    </dialog>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+[package]
+name = "petvoice-speech"
+description = "English text → CHIMERA's human voice, for PetVoice Lab's type-a-sentence input (offline renders in a Worker)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+chimera = { path = "../vendor/chimera" }

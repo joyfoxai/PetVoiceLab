@@ -1,0 +1,13 @@
+[package]
+name = "petvoice-engine"
+description = "PetVoice Lab sounding layer: cat/dog airways on the CHIMERA FDTD engine, C ABI for an AudioWorklet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+chimera = { path = "../vendor/chimera" }
